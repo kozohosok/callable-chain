@@ -77,7 +77,7 @@ prompt or '''Given the following conversation and a follow up question, rephrase
 Chat History: ```
 {chat_history}
 ```
-Follow Up QUestion: {question}
+Follow Up Question: {question}
 Standalone question:''', llm)
     f = lambda x: condense(x) if x.get('chat_history') else x['question']
     return Chain({tag: f} if tag else f)
