@@ -1,3 +1,3 @@
 # callable-chain
 
-utility to compose chain of callable functions in the age of LLM.
+utility to compose chain of callable functions in the age of Generative AI.
