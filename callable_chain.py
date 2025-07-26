@@ -12,10 +12,11 @@ def passThrough(x, *args):
 def formatStr(template, xdict):
     return template.format(**xdict)
 
-def pushResult(buf, lock, k, f, x):
-    with lock: buf[k] = f(x)
+def pushResult(buf, lock, key, func, x):
+    with lock:
+        buf[key] = func(x)
 
-def callConcurrent(kfxs):
+def callThread(kfxs):
     args = ({}, Semaphore(4))
     ts = [ Thread(target=pushResult, args=args + kfx) for kfx in kfxs ]
     for t in ts: t.start()
@@ -76,12 +77,12 @@ def buildChoose(*args):
 def buildPick(*args, **kwds):
     return Chain(itemgetter(*args, **kwds))
 
-def mapConcurrent(f, xs):
-    buf = callConcurrent( (i, f, x) for i,x in enumerate(xs) )
+def mapThread(f, xs):
+    buf = callThread( (i, f, x) for i,x in enumerate(xs) )
     return map(buf.get, range(len(xs)))
 
 def buildMap(f):
-    return Chain(partial(mapConcurrent, f))
+    return Chain(partial(mapThread, f))
 
 ### RAG ###
 
