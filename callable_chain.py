@@ -4,12 +4,23 @@
 from collections import namedtuple
 from functools import partial
 from operator import itemgetter
+from threading import Semaphore, Thread
 
 def passThrough(x, *args):
     return x
 
 def formatStr(template, xdict):
     return template.format(**xdict)
+
+def pushResult(buf, lock, k, f, x):
+    with lock: buf[k] = f(x)
+
+def callConcurrent(kfxs):
+    args = ({}, Semaphore(4))
+    ts = [ Thread(target=pushResult, args=args + kfx) for kfx in kfxs ]
+    for t in ts: t.start()
+    for t in ts: t.join()
+    return args[0]
 
 def callList(callables, x):
     return [ f(x) for f in callables ]
@@ -65,8 +76,12 @@ def buildChoose(*args):
 def buildPick(*args, **kwds):
     return Chain(itemgetter(*args, **kwds))
 
+def mapConcurrent(f, xs):
+    buf = callConcurrent( (i, f, x) for i,x in enumerate(xs) )
+    return map(buf.get, range(len(xs)))
+
 def buildMap(f):
-    return Chain(partial(map, f))
+    return Chain(partial(mapConcurrent, f))
 
 ### RAG ###
 
