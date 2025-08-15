@@ -141,6 +141,10 @@ def callBedrock(converse, model_id, max_tokens, text):
     res = converse(modelId=model_id, **conf)
     return res['output']['message']['content'][0]['text']
 
+def makeBedrockLLM(bedrock, *args):
+    fs = ( partial(callBedrock, bedrock.converse, *xs) for xs in args )
+    return next(fs) if len(args) == 1 else fs
+
 if __name__ == '__main__':
     retrieve = lambda text: [Document('test ' + text, {})]
     condense = lambda text: 'hello with history'
