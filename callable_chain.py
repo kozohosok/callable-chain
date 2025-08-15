@@ -12,15 +12,17 @@ def passThrough(x, *args):
 def formatStr(template, xdict):
     return template.format(**xdict)
 
-def pushResult(buf, lock, key, func, x):
+def pushResult(results, lock, key, func, x):
     with lock:
-        buf[key] = func(x)
+        results[key] = func(x)
 
 def callThread(kfxs):
     args = ({}, Semaphore(4))
     ts = [ Thread(target=pushResult, args=args + kfx) for kfx in kfxs ]
-    for t in ts: t.start()
-    for t in ts: t.join()
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
     return args[0]
 
 def callList(callables, x):
@@ -129,10 +131,22 @@ def makeDocument(item):
 def docDistance(document):
     return document.metadata['_distance']
 
+### LLM ###
+
+def callBedrock(converse, model_id, max_tokens, text):
+    cnof = dict(inferenceConfig=dict(temperature=0, maxTokens=max_tokens))
+    if isinstance(text, (list, tuple)):
+        text, conf['system'] = text[-1], [dict(text=text[0])]
+    conf['messages'] = [dict(content=[dict(text=text)], role='user')]
+    res = converse(modelId=model_id, **conf)
+    return res['output']['message']['content'][0]['text']
+
 if __name__ == '__main__':
-    retrieve = lambda text: [Document('test', {})]
-    answer = lambda text: 'hey!'
+    retrieve = lambda text: [Document('test ' + text, {})]
     condense = lambda text: 'hello with history'
+    answer = lambda text: 'hey!'
     rag = buildRAG(retrieve, condense, answer)
     print(rag(dict(question='hello')))
     print(rag(dict(question='hello', chat_history='some history')))
+
+
