@@ -107,7 +107,7 @@ def buildRetrieve(retriever, pick=None, lift='question', tag='context'):
 
 def buildAnswer(llm, prompt=None, join='context', tag='answer'):
     answer = Chain(
-prompt or '''Answer the question in its own language, based only on the following context: ```
+prompt or '''Answer the question in its original language, based only on the following context: ```
 {context}
 ```
 Question: {question}
