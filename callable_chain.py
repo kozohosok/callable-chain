@@ -151,6 +151,6 @@ if __name__ == '__main__':
     answer = lambda text: 'hey!'
     rag = buildRAG(retrieve, condense, answer)
     print(rag(dict(question='hello')))
-    print(rag(dict(question='hello', chat_history='some history')))
+    print(rag(dict(question='hello', chat_history=['some history'])))
 
 
