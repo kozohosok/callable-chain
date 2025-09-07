@@ -81,7 +81,7 @@ def buildPick(*args, **kwds):
 
 def mapThread(f, xs):
     buf = callThread( (i, f, x) for i,x in enumerate(xs) )
-    return map(buf.get, range(len(xs)))
+    return map(buf.get, range(len(buf)))
 
 def buildMap(f):
     return Chain(partial(mapThread, f))
