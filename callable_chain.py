@@ -76,8 +76,8 @@ def buildAssign(*args, **kwds):
 def buildChoose(*args):
     return Chain(makeCallable(args, call_list=chooseList))
 
-def buildPick(*args, **kwds):
-    return Chain(itemgetter(*args, **kwds))
+def buildPick(*args):
+    return Chain(itemgetter(*args))
 
 def mapThread(f, xs):
     buf = callThread( (i, f, x) for i,x in enumerate(xs) )
