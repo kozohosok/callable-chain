@@ -83,8 +83,9 @@ def mapThread(f, xs):
     buf = callThread( (i, f, x) for i,x in enumerate(xs) )
     return map(buf.get, range(len(buf)))
 
-def buildMap(f):
-    return Chain(partial(mapThread, f))
+def buildMap(f, thread=True):
+    base = mapThread if thread else map
+    return Chain(partial(base, f))
 
 ### RAG ###
 
@@ -134,7 +135,7 @@ def docDistance(document):
 ### LLM ###
 
 def callBedrock(converse, model_id, max_tokens, text):
-    cnof = dict(inferenceConfig=dict(temperature=0, maxTokens=max_tokens))
+    conf = dict(inferenceConfig=dict(temperature=0, maxTokens=max_tokens))
     if isinstance(text, (list, tuple)):
         text, conf['system'] = text[-1], [dict(text=text[0])]
     conf['messages'] = [dict(content=[dict(text=text)], role='user')]
