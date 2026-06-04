@@ -6,17 +6,17 @@ from functools import partial
 from operator import itemgetter
 from threading import Semaphore, Thread
 
-def passThrough(x, *args):
+def passThrough(x: Any, *args) -> Any:
     return x
 
-def formatStr(template, xdict):
-    return template.format(**xdict)
+def formatStr(template: str, x: dict) -> str:
+    return template.format(**x)
 
-def pushResult(results, lock, key, func, x):
+def pushResult(results: dict, lock: Lock, key: str, func: Callable, x: Any) -> None:
     with lock:
         results[key] = func(x)
 
-def callThread(kfxs):
+def callThread(kfxs: list[tuple[str,Callable,Any]]) -> dict:
     args = ({}, Semaphore(4))
     ts = [ Thread(target=pushResult, args=args + kfx) for kfx in kfxs ]
     for t in ts:
@@ -25,25 +25,25 @@ def callThread(kfxs):
         t.join()
     return args[0]
 
-def callList(callables, x):
+def callList(callables: list[Callable], x: Any) -> list:
     return [ f(x) for f in callables ]
 
-def chooseList(callables, x):
+def chooseList(callables: list[Callable], x: Any) -> Any:
     for f in callables:
         y = f(x)
         if y is not None:
             return y
 
-def callDict(callabledict, x):
+def callDict(callabledict: dict[str,Callable], x: Any) -> dict:
     return { k: f(x) for k,f in callabledict.items() }
 
-def assignDict(callabledict, xdict):
-    y = callDict(callabledict, xdict)
+def assignDict(callabledict: dict[str,Callable], x: dict) -> dict:
+    y = callDict(callabledict, x)
     for k in set(xdict) - set(y):
-        y[k] = xdict[k]
+        y[k] = x[k]
     return y
 
-def makeCallable(x, call_dict=callDict, call_list=callList):
+def makeCallable(x: Any, call_dict=callDict, call_list=callList) -> Callable:
     if callable(x):
         return x
     if isinstance(x, str):
@@ -60,36 +60,36 @@ class Chain:
         for x in args:
             fs += x.callables if isinstance(x, Chain) else [makeCallable(x)]
         self.callables = fs
-    def __call__(self, x):
+    def __call__(self, x: Any) -> Any:
         for f in self.callables:
             x = f(x)
         return x
-    def __or__(self, other):
+    def __or__(self, other: Any) -> Chain:
         return Chain(self, other)
-    def __ror__(self, other):
+    def __ror__(self, other: Any) -> Chain:
         return Chain(other, self)
 
-def buildAssign(*args, **kwds):
+def buildAssign(*args, **kwds) -> Chain:
     kwds.update(zip(args[::2], args[1::2]))
     return Chain(makeCallable(kwds, call_dict=assignDict))
 
-def buildChoose(*args):
+def buildChoose(*args) -> Chain:
     return Chain(makeCallable(args, call_list=chooseList))
 
-def buildPick(*args):
+def buildPick(*args) -> Chain:
     return Chain(itemgetter(*args))
 
-def mapThread(f, xs):
+def mapThread(f: Callable, xs: list) -> Iterator:
     buf = callThread( (i, f, x) for i,x in enumerate(xs) )
     return map(buf.get, range(len(buf)))
 
-def buildMap(f, thread=True):
+def buildMap(f: Callable, thread=True) -> Chain:
     base = mapThread if thread else map
     return Chain(partial(base, f))
 
 ### RAG ###
 
-def buildCondense(llm, prompt=None, tag=None):
+def buildCondense(llm: Callable, prompt: str=None, tag: str=None) -> Chain:
     condense = Chain(
 prompt or '''Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
@@ -101,12 +101,12 @@ Standalone question:''', llm)
     f = lambda x: condense(x) if x.get('chat_history') else x['question']
     return Chain({tag: f} if tag else f)
 
-def buildRetrieve(retriever, pick=None, lift='question', tag='context'):
+def buildRetrieve(retriever: Callable, pick: str=None, lift='question', tag='context') -> Chain:
     if pick:
         return buildAssign(tag, buildPick(pick) | retriever)
     return Chain({lift: passThrough, tag: retriever})
 
-def buildAnswer(llm, prompt=None, join='context', tag='answer'):
+def buildAnswer(llm: Callable, prompt=None, join='context', tag='answer'):
     answer = Chain(
 prompt or '''Answer the question in its original language, based only on the following context: ```
 {context}
@@ -118,23 +118,23 @@ Answer:''', llm)
         answer = buildAssign(join, f) | answer
     return buildAssign(tag, answer)
 
-def buildRAG(retriever, llm_fast, llm):
+def buildRAG(retriever: Callable, llm_fast: Callable, llm: Callable) -> Chain:
     return buildCondense(llm_fast) | buildRetrieve(retriever) | buildAnswer(llm)
 
 ### RETRIEVE ###
 
 Document = namedtuple('Document', ['page_content', 'metadata'])
 
-def makeDocument(item):
+def makeDocument(item: dict) -> Document:
     md = { k: item[k] for k in set(item) - {'text', 'vector'} }
     return Document(page_content=item['text'], metadata=md)
 
-def docDistance(document):
+def docDistance(document: Document) -> float:
     return document.metadata['_distance']
 
 ### LLM ###
 
-def callBedrock(converse, model_id, max_tokens, text):
+def callBedrock(converse: Callable, model_id: str, max_tokens: int, text: str) -> str:
     conf = dict(inferenceConfig=dict(temperature=0, maxTokens=max_tokens))
     if isinstance(text, (list, tuple)):
         text, conf['system'] = text[-1], [dict(text=text[0])]
@@ -142,7 +142,7 @@ def callBedrock(converse, model_id, max_tokens, text):
     res = converse(modelId=model_id, **conf)
     return res['output']['message']['content'][0]['text']
 
-def makeBedrockLLM(bedrock, *args):
+def makeBedrockLLM(bedrock, *args) -> Callable | Iterator[Callable]:
     fs = ( partial(callBedrock, bedrock.converse, *xs) for xs in args )
     return next(fs) if len(args) == 1 else fs
 
