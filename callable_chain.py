@@ -83,9 +83,8 @@ def mapThread(f: Callable, xs: list) -> Iterator:
     buf = callThread( (i, f, x) for i,x in enumerate(xs) )
     return map(buf.get, range(len(buf)))
 
-def buildMap(f: Callable, thread=True) -> Chain:
-    base = mapThread if thread else map
-    return Chain(partial(base, f))
+def buildMap(f: Callable, mapper=mapThread) -> Chain:
+    return Chain(partial(mapper or map, f))
 
 ### RAG ###
 
