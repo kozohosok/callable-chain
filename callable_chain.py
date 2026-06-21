@@ -145,6 +145,71 @@ def makeBedrockLLM(bedrock, *args) -> Callable | Iterator[Callable]:
     fs = ( partial(callBedrock, bedrock.converse, *xs) for xs in args )
     return next(fs) if len(args) == 1 else fs
 
+### TOOL ###
+
+def makeSpecBase(f: Callable | dict) -> dict:
+    if not callable(f):
+        return f
+    s, spec = f.__doc__, dict(name=f.__name__, call=f, inputs=[])
+    if s:
+        spec['description'] = s
+    return spec
+
+def tool(*args, **kwds) -> dict | Callable:
+    spec = None
+    if args and not isinstance(args[0], str):
+        spec, args = makeSpecBase(args[0]), args[1:]
+    kwds.update(zip(['name', 'description', 'inputs'], args))
+    if not spec:
+        return lambda x: tool(x, **kwds)
+    ks = list(filter(kwds.get, ['name', 'description', 'option_inputs']))
+    spec.update(zip(ks, map(kwds.get, ks)))
+    spec['inputs'] += kwds.get('inputs', [])
+    return spec
+
+def tool_input(name: str, *args, **kwds) -> Callable:
+    if name:
+        kwds['name'] = name
+    kwds.update(zip(['description', 'type'], args))
+    kwds.setdefault('type', 'string')
+    return tool(inputs=[kwds])
+
+def makeToolSpec(tool: dict) -> tuple[dict,dict]:
+    conf = { k: tool[k] for k in ('name', 'description') }
+    props = { x['name']: x.copy() for x in tool['inputs'] }
+    names = [ x.pop('name') for x in props.values() ]
+    opt = tool.get('option_inputs')
+    if opt:
+        names = list(set(names) - set(opt))
+    return conf, dict(type='object', properties=props, required=names)
+
+def makeOpenaiToolSpec(tool: dict) -> dict:
+    conf, inputs = makeToolSpec(tool)
+    inputs['additionalProperties'] = False
+    conf.update(parameters=inputs, strict=True)
+    return dict(type='function', function=conf)
+
+def applyOpenaiTool(funcs: dict[str,Callable], tool_call: dict) -> dict:
+    f, x = tool_call['function'], tool_call['id']
+    name = f['name']
+    func = funcs.get(name)
+    s = json.dumps(func(**json.loads(f['arguments']))) if func else 'null'
+    return dict(role='tool', name=name, content=s, tool_call_id=x)
+
+def makeOpenaiToolResult(funcs: dict[str,Callable], specs: dict[str,dict], message: dict) -> Iterator:
+    xs = message.get('tool_calls', [])
+    xs = [ applyOpenaiTool(funcs, x) for x in xs ]
+    for x in xs:
+        specs.pop(x['name'], 0)
+    if xs:
+        return [message] + xs
+
+@tool('get_weather', 'Get the weather of a city.')
+@too_input('city', 'The name of the city to get the weather of.')
+def toolWeather(city: str) -> dict:
+    return dict(city=city, weather='rainy')
+
+
 if __name__ == '__main__':
     retrieve = lambda text: [Document('test ' + text, {})]
     condense = lambda text: 'hello with history'
@@ -152,5 +217,4 @@ if __name__ == '__main__':
     rag = buildRAG(retrieve, condense, answer)
     print(rag(dict(question='hello')))
     print(rag(dict(question='hello', chat_history=['some history'])))
-
 
